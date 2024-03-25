@@ -50,7 +50,7 @@ public class Server {
                     BufferedOutputStream responseStream = new BufferedOutputStream(socket.getOutputStream())
             ) {
                 String method = request.getMethod();
-                String path = request.getPath();
+                String path = request.getPath().split("\\?")[0]; // Extract path without query string
                 Handler handler = handlers.getOrDefault(method, new HashMap<>()).get(path);
                 if (handler != null) {
                     handler.handle(request, responseStream);

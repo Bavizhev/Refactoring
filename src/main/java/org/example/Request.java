@@ -1,20 +1,29 @@
 package org.example;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class Request implements AutoCloseable {
     private final String method;
     private final String path;
-    private static final Map<String, String> headers = new HashMap<>();
+    private final Map<String, String> headers = new HashMap<>();
+    private final String queryString;
+    private final List<NameValuePair> queryParams;
 
-    private Request(String method, String path) {
+    private Request(String method, String path, String queryString) {
         this.method = method;
         this.path = path;
+        this.queryString = queryString;
+        this.queryParams = parseQueryParams(queryString);
     }
 
     public static Request parse(InputStream inputStream) throws IOException {
@@ -26,12 +35,15 @@ public class Request implements AutoCloseable {
                 throw new IllegalArgumentException("Invalid request line: " + requestLine);
             }
             String method = parts[0];
-            String path = parts[1];
+            String[] pathAndQuery = parts[1].split("\\?");
+            String path = pathAndQuery[0];
+            String queryString = (pathAndQuery.length > 1) ? pathAndQuery[1] : "";
 
             // Read headers
+            Map<String, String> headers = new HashMap<>();
             String line;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                String[] headerParts = line.split(": ");
+                String[] headerParts = line.split(": ", 2);
                 if (headerParts.length == 2) {
                     String headerName = headerParts[0];
                     String headerValue = headerParts[1];
@@ -39,7 +51,7 @@ public class Request implements AutoCloseable {
                 }
             }
 
-            return new Request(method, path);
+            return new Request(method, path, queryString);
         }
     }
 
@@ -51,12 +63,25 @@ public class Request implements AutoCloseable {
         return path;
     }
 
-    public String getHeader(String name) {
-        return headers.get(name);
+    public String getQueryParam(String name) {
+        for (NameValuePair param : queryParams) {
+            if (param.getName().equals(name)) {
+                return param.getValue();
+            }
+        }
+        return null;
+    }
+
+    public List<NameValuePair> getQueryParams() {
+        return queryParams;
     }
 
     @Override
     public void close() throws IOException {
         // No resources to close
+    }
+
+    private List<NameValuePair> parseQueryParams(String queryString) {
+        return URLEncodedUtils.parse(queryString, StandardCharsets.UTF_8);
     }
 }
